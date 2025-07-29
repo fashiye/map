@@ -143,9 +143,9 @@ function drawDistrictBoundaries(district) {
             var polygon = new AMap.Polygon({
                 map: map,
                 path: boundary,
-                strokeColor: "#FF33FF",
+                strokeColor: "#09c8eaea",
                 strokeWeight: 2,
-                fillColor: "#FF99FF",
+                fillColor: "#09c8eaea",
                 fillOpacity: 0.3
             });
             districtPolygons.push(polygon);
@@ -210,7 +210,7 @@ function getLevelName(level) {
         'beginner': '初中水平',
         'advanced': '高中水平',
         'practical': '大学水平',
-        'professional': '研究生水平'
+        
     };
     return levelNames[level] || '未知水平';
 }
