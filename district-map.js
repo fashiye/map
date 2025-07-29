@@ -1,4 +1,12 @@
-import { deepseek } from './deepseek.js';
+// district-map.js
+async function callDeepseekChat(messages, style = 'default') {
+    const response = await fetch('/api/deepseek/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages, style })
+    });
+    return await response.json();
+}
 
 var map = new AMap.Map('container', {
     zoom: 5,
@@ -7,119 +15,8 @@ var map = new AMap.Map('container', {
 
 var districtPolygons = [];
 var isSearching = false;
-var districtSearch;
 
-AMap.plugin(['AMap.DistrictSearch', 'AMap.Geocoder'], function() {
-    var geocoder = new AMap.Geocoder();
-    districtSearch = new AMap.DistrictSearch({
-        level: 'city',
-        extensions: 'all',
-        subdistrict: 0
-    });
-
-    map.on('click', function(e) {
-        if (isSearching) {
-            console.log('已有查询正在进行中，请等待...');
-            return;
-        }
-        isSearching = true;
-        
-        clearHighlight();
-        
-        var lnglat = [e.lnglat.lng, e.lnglat.lat];
-        console.log('===== 开始新的查询 =====');
-        console.log('点击位置:', {
-            经度: lnglat[0],
-            纬度: lnglat[1],
-            格式化坐标: `${lnglat[0].toFixed(6)},${lnglat[1].toFixed(6)}`
-        });
-
-        // 使用逆地理编码获取地址信息
-        geocoder.getAddress(lnglat, function(status, result) {
-            try {
-                console.log('逆地理编码返回:', {
-                    状态: status,
-                    完整结果: result
-                });
-
-                if (status !== 'complete' || !result.regeocode) {
-                    throw new Error('逆地理编码失败');
-                }
-
-                var addressComponent = result.regeocode.addressComponent;
-                console.log('地址组件详情:', {
-                    省份: addressComponent.province,
-                    城市: addressComponent.city,
-                    区县: addressComponent.district,
-                    编码: addressComponent.adcode,
-                    城市编码: addressComponent.citycode
-                });
-
-                // 直接使用 adcode 前四位 + '00' 获取市级边界
-                var cityAdcode = addressComponent.adcode.substring(0, 4) + '00';
-                console.log('市级行政区查询参数:', {
-                    原始区域编码: addressComponent.adcode,
-                    处理后编码: cityAdcode,
-                    查询级别: 'city'
-                });
-
-                // 直接查询市级边界
-                districtSearch.search(cityAdcode, function(status2, result2) {
-                    try {
-                        console.log('市级查询返回:', {
-                            状态: status2,
-                            信息: result2 ? result2.info : null,
-                            结果数量: result2 && result2.districts ? result2.districts.length : 0,
-                            完整结果: JSON.stringify(result2)
-                        });
-
-                        if (status2 === 'complete' && result2 && result2.info === 'OK') {
-                            var districts = result2.districts || result2.districtList || [];
-                            
-                            if (districts.length > 0) {
-                                var cityDistrict = districts[0];
-                                console.log('找到市级行政区:', {
-                                    名称: cityDistrict.name,
-                                    级别: cityDistrict.level,
-                                    编码: cityDistrict.adcode,
-                                    边界数据: cityDistrict.boundaries ? '有' : '无'
-                                });
-                                
-                                if (cityDistrict.boundaries) {
-                                    drawDistrictBoundaries(cityDistrict);
-                                    // 调用 DeepSeek API 获取地理知识
-                                    getRegionInfo(cityDistrict.name);
-                                } else {
-                                    console.error('行政区无边界数据:', cityDistrict.name);
-                                }
-                            } else {
-                                throw new Error(`未找到行政区数据: ${cityAdcode}`);
-                            }
-                        } else {
-                            throw new Error(`查询失败: ${result2 ? result2.info : '未知错误'}`);
-                        }
-                    } catch (error) {
-                        console.error('查询处理出错:', {
-                            错误消息: error.message,
-                            堆栈: error.stack
-                        });
-                    } finally {
-                        isSearching = false;
-                    }
-                });
-            } catch (error) {
-                console.error('地址解析详情:', {
-                    错误消息: error.message,
-                    堆栈: error.stack,
-                    原始状态: status,
-                    原始结果: result
-                });
-                isSearching = false;
-            }
-        });
-    });
-});
-
+// 清除高亮
 function clearHighlight() {
     districtPolygons.forEach(function(polygon) {
         polygon.setMap(null);
@@ -127,19 +24,17 @@ function clearHighlight() {
     districtPolygons = [];
 }
 
-// 简化后的绘制函数
+// 绘制边界
 function drawDistrictBoundaries(district) {
     try {
         if (!district || !district.boundaries || !district.boundaries.length) {
             throw new Error(`无效的边界数据: ${district ? district.name : '未知'}`);
         }
-
         district.boundaries.forEach(function(boundary) {
             if (!Array.isArray(boundary) || boundary.length === 0) {
                 console.warn('跳过无效边界数据');
                 return;
             }
-
             var polygon = new AMap.Polygon({
                 map: map,
                 path: boundary,
@@ -150,7 +45,6 @@ function drawDistrictBoundaries(district) {
             });
             districtPolygons.push(polygon);
         });
-        
         if (districtPolygons.length > 0) {
             map.setFitView(districtPolygons);
             console.log('已绘制市级行政区:', district.name);
@@ -162,16 +56,14 @@ function drawDistrictBoundaries(district) {
     }
 }
 
-// 添加学习级别状态变量
+// 学习级别
 let currentLevel = 'default';
 
-// 修改 getRegionInfo 函数
+// 获取地理知识
 async function getRegionInfo(regionName) {
     const infoPanel = document.getElementById('infoPanel');
     const title = infoPanel.querySelector('.title');
     const content = infoPanel.querySelector('.content');
-    
-    // 显示面板和加载状态
     title.textContent = `${regionName} (${getLevelName(currentLevel)})`;
     content.innerHTML = '<div class="loading">正在加载地理知识...</div>';
     infoPanel.style.display = 'block';
@@ -181,12 +73,9 @@ async function getRegionInfo(regionName) {
             role: 'user',
             content: `${regionName}的地理特征和知识`
         }];
-
-        const response = await deepseek.chat(messages, `study.${currentLevel}`);
-        
-        // 检查响应数据结构
+        // 这里调用后端转发的 deepseek
+        const response = await callDeepseekChat(messages, `study.${currentLevel}`);
         if (response && response.choices && response.choices[0] && response.choices[0].message) {
-            // 从 message 对象中获取 content
             const content_text = response.choices[0].message.content;
             if (content_text) {
                 content.innerHTML = content_text.replace(/\n/g, '<br>');
@@ -203,19 +92,58 @@ async function getRegionInfo(regionName) {
     }
 }
 
-// 添加级别名称转换函数
+// 级别名称
 function getLevelName(level) {
     const levelNames = {
         'default': '小学水平',
         'beginner': '初中水平',
         'advanced': '高中水平',
         'practical': '大学水平',
-        
     };
     return levelNames[level] || '未知水平';
 }
 
-// 添加事件监听器
+// 地图点击事件
+map.on('click', async function(e) {
+    if (isSearching) {
+        console.log('已有查询正在进行中，请等待...');
+        return;
+    }
+    isSearching = true;
+    clearHighlight();
+    var lnglat = [e.lnglat.lng, e.lnglat.lat];
+    // 1. 逆地理编码（后端API）
+    try {
+        const geoRes = await fetch(`/api/geocode?lng=${lnglat[0]}&lat=${lnglat[1]}`);
+        const geoData = await geoRes.json();
+        if (!geoData.regeocode || !geoData.regeocode.addressComponent) {
+            throw new Error('逆地理编码失败');
+        }
+        const addressComponent = geoData.regeocode.addressComponent;
+        // 2. 获取市级adcode
+        var cityAdcode = addressComponent.adcode.substring(0, 4) + '00';
+        // 3. 查询市级行政区（后端API）
+        const distRes = await fetch(`/api/district?adcode=${cityAdcode}`);
+        const distData = await distRes.json();
+        if (distData.status === '1' && distData.districts && distData.districts.length > 0) {
+            var cityDistrict = distData.districts[0];
+            if (cityDistrict.boundaries && cityDistrict.boundaries.length > 0) {
+                drawDistrictBoundaries(cityDistrict);
+                getRegionInfo(cityDistrict.name);
+            } else {
+                console.error('行政区无边界数据:', cityDistrict.name);
+            }
+        } else {
+            throw new Error('未找到市级行政区');
+        }
+    } catch (error) {
+        console.error('点击查询出错:', error);
+    } finally {
+        isSearching = false;
+    }
+});
+
+// 事件监听
 document.addEventListener('DOMContentLoaded', function() {
     // 点击地图时如果面板显示，则隐藏面板
     map.on('click', function() {
@@ -225,18 +153,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // 添加级别切换按钮的事件监听
+    // 学习级别切换
     const buttons = document.querySelectorAll('.level-switcher button');
     buttons.forEach(button => {
         button.addEventListener('click', function() {
-            // 移除所有按钮的活动状态
             buttons.forEach(btn => btn.classList.remove('active'));
-            // 添加当前按钮的活动状态
             this.classList.add('active');
-            // 更新当前级别
             currentLevel = this.dataset.level;
-            
-            // 如果面板当前显示，则刷新内容
             const infoPanel = document.getElementById('infoPanel');
             if (infoPanel.style.display === 'block') {
                 const regionName = infoPanel.querySelector('.title').textContent.split(' (')[0];
@@ -245,11 +168,11 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // 添加关闭按钮的事件监听
+    // 关闭按钮
     const closeBtn = document.querySelector('#infoPanel .close-btn');
     if (closeBtn) {
         closeBtn.addEventListener('click', function(e) {
-            e.stopPropagation(); // 阻止事件冒泡
+            e.stopPropagation();
             const infoPanel = document.getElementById('infoPanel');
             infoPanel.style.display = 'none';
         });
@@ -261,26 +184,19 @@ document.addEventListener('DOMContentLoaded', function() {
         e.stopPropagation();
     });
 
-    // 在地图初始化后添加卫星图层
+    // 地图类型切换
     var satelliteLayer = new AMap.TileLayer.Satellite();
     var roadNetLayer = new AMap.TileLayer.RoadNet();
-
-    // 添加地图类型切换功能
     const mapTypeBtns = document.querySelectorAll('.map-type-switch button');
     mapTypeBtns.forEach(button => {
         button.addEventListener('click', function() {
-            // 更新按钮状态
             mapTypeBtns.forEach(btn => btn.classList.remove('active'));
             this.classList.add('active');
-
-            // 切换地图类型
             const mapType = this.dataset.type;
             if (mapType === 'satellite') {
-                // 切换到卫星图
                 satelliteLayer.setMap(map);
                 roadNetLayer.setMap(map);
             } else {
-                // 切换到普通地图
                 satelliteLayer.setMap(null);
                 roadNetLayer.setMap(null);
             }

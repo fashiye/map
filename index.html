@@ -3,14 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>理蕴经纬网</title>
-    <!-- 添加安全密钥配置 -->
-    <script>
-        window._AMapSecurityConfig = {
-            securityJsCode: '3e72951569c42f0cc0dc8f7e40e32363'
-        }
-    </script>
-    <!-- 修改 API 加载方式，添加 plugins 参数 -->
-    <script src="https://webapi.amap.com/maps?v=2.0&key=46eaf29c2fb11c5c66f7583d7f451995&plugin=AMap.DistrictSearch,AMap.Geocoder"></script>
+    <script src="https://webapi.amap.com/maps?v=2.0"></script>
     <style>
         /*设置地图容器的大小*/
         #container {
@@ -155,9 +148,18 @@
         .map-type-switch button:last-child {
             border-radius: 0 4px 4px 0;
         }
+        #vidao{
+            height: 200px;
+            position: fixed;
+            bottom: 2%;
+            left: 2%;
+            width: 200px;
+            ;
+        }
     </style>
 </head>
 <body>
+    
     <div id="container"></div>
     
     <!-- 添加学习级别切换按钮组 -->
@@ -181,8 +183,9 @@
         <button data-type="base" class="active">普通地图</button>
         <button data-type="satellite">卫星影像</button>
     </div>
-
-    <script type="module" src="deepseek.js"></script>
+    <div id="vidao">
+        <iframe src="//player.bilibili.com/player.html?isOutside=true&bvid=BV1rdBZYNEu3&cid=25712071373&p=1"  scrolling="no" frameborder="off" framespacing="1" allowfullscreen="true" sandbox="allow-top-navigation allow-same-origin allow-forms allow-scripts"></iframe>
+    </div>  
     <script type="module" src="district-map.js"></script>
     
 </body>
