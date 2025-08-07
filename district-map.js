@@ -24,17 +24,36 @@ function clearHighlight() {
     districtPolygons = [];
 }
 
-// 绘制边界
+// 绘制边界 - 增强版
 function drawDistrictBoundaries(district) {
     try {
-        if (!district || !district.boundaries || !district.boundaries.length) {
+        // 只依赖polyline字段
+        if (!district || !district.polyline) {
             throw new Error(`无效的边界数据: ${district ? district.name : '未知'}`);
         }
-        district.boundaries.forEach(function(boundary) {
-            if (!Array.isArray(boundary) || boundary.length === 0) {
-                console.warn('跳过无效边界数据');
-                return;
+        
+        const boundaries = [];
+        const polylines = district.polyline.split('|');
+        
+        polylines.forEach(poly => {
+            const points = poly.split(';')
+                .filter(pt => pt.includes(',')) // 过滤空点
+                .map(point => {
+                    const [lng, lat] = point.split(',');
+                    return [parseFloat(lng), parseFloat(lat)];
+                });
+                
+            if (points.length > 1) { // 至少2个点才能构成线段
+                boundaries.push(points);
             }
+        });
+        
+        if (boundaries.length === 0) {
+            throw new Error(`解析后无有效边界数据: ${district.name}`);
+        }
+        
+        // 绘制多边形
+        boundaries.forEach(function(boundary) {
             var polygon = new AMap.Polygon({
                 map: map,
                 path: boundary,
@@ -45,14 +64,15 @@ function drawDistrictBoundaries(district) {
             });
             districtPolygons.push(polygon);
         });
-        if (districtPolygons.length > 0) {
-            map.setFitView(districtPolygons);
-            console.log('已绘制市级行政区:', district.name);
-        } else {
-            console.error('未能绘制任何边界:', district.name);
-        }
+        
+        map.setFitView(districtPolygons);
+        
     } catch (error) {
         console.error('绘制边界时出错:', error);
+        const infoPanel = document.getElementById('infoPanel');
+        const content = infoPanel.querySelector('.content');
+        content.innerHTML = `<div class="error">边界数据错误: ${error.message}</div>`;
+        infoPanel.style.display = 'block';
     }
 }
 
@@ -127,17 +147,28 @@ map.on('click', async function(e) {
         const distData = await distRes.json();
         if (distData.status === '1' && distData.districts && distData.districts.length > 0) {
             var cityDistrict = distData.districts[0];
-            if (cityDistrict.boundaries && cityDistrict.boundaries.length > 0) {
+            
+            // 修复这里：检查 polyline 而不是 boundaries
+            if (cityDistrict.polyline) {
                 drawDistrictBoundaries(cityDistrict);
                 getRegionInfo(cityDistrict.name);
             } else {
                 console.error('行政区无边界数据:', cityDistrict.name);
+                // 添加错误处理
+                const infoPanel = document.getElementById('infoPanel');
+                const content = infoPanel.querySelector('.content');
+                content.innerHTML = `<div class="error">该行政区无边界数据: ${cityDistrict.name}</div>`;
+                infoPanel.style.display = 'block';
             }
         } else {
             throw new Error('未找到市级行政区');
         }
     } catch (error) {
         console.error('点击查询出错:', error);
+        const infoPanel = document.getElementById('infoPanel');
+        const content = infoPanel.querySelector('.content');
+        content.innerHTML = `<div class="error">查询失败: ${error.message}</div>`;
+        infoPanel.style.display = 'block';
     } finally {
         isSearching = false;
     }

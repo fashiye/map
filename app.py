@@ -36,6 +36,9 @@ def district():
         return jsonify({'error': '缺少参数'}), 400
     url = f'https://restapi.amap.com/v3/config/district?keywords={adcode}&subdistrict=0&extensions=all&key={GAODE_KEY}'
     resp = requests.get(url)
+    #输出到text文件
+    #with open('district_response.txt', 'w', encoding='utf-8') as f:
+    #     f.write(resp.text)
     return jsonify(resp.json())
 
 @app.route('/api/deepseek/chat', methods=['POST'])
