@@ -5,8 +5,8 @@ import os
 
 app = Flask(__name__, static_folder='.', static_url_path='')
 
-GAODE_KEY = '8f6a89692d5cf87a1140f1d3a82367a5'  # 只保存在后端
-DEEPSEEK_API_KEY = 'sk-6b17e3f2ff354b01b7eb0ec02bc4cd46'
+GAODE_KEY = ''  # 只保存在后端
+DEEPSEEK_API_KEY = ''
 DEEPSEEK_API_ENDPOINT = 'https://api.deepseek.com/v1'
 
 @app.route('/')
